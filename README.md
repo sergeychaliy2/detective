@@ -1,5 +1,8 @@
 # ТЕНЬ ЧИСЛА — Shadow of Number
 
+[![CI](https://github.com/sergeychaliy2/detective/actions/workflows/ci.yml/badge.svg)](https://github.com/sergeychaliy2/detective/actions/workflows/ci.yml)
+[![Release Build](https://github.com/sergeychaliy2/detective/actions/workflows/release.yml/badge.svg)](https://github.com/sergeychaliy2/detective/actions/workflows/release.yml)
+
 > Детективный симулятор для математиков.
 > «Преврати сухую статистику в неопровержимое доказательство.»
 
@@ -855,6 +858,21 @@ flutter test
 
 # Кодогенерация (когда появятся @freezed / @riverpod аннотации)
 dart run build_runner build --delete-conflicting-outputs
+```
+
+### CI/CD (GitHub Actions)
+
+| Workflow | Когда запускается | Что делает |
+|---|---|---|
+| [`ci.yml`](.github/workflows/ci.yml) | каждый push/PR в `main` | `flutter analyze` + `flutter test` (44 теста) |
+| [`release.yml`](.github/workflows/release.yml) | тег `v*` или вручную | `flutter build windows --release` → zip публикуется в **GitHub Releases** (по тегу) и в artifacts |
+
+**Выпуск релиза:**
+```powershell
+# подними version в pubspec.yaml, затем:
+git tag v0.1.0
+git push origin v0.1.0
+# → release.yml соберёт Windows-сборку и создаст GitHub Release с zip
 ```
 
 ---
