@@ -1,0 +1,64 @@
+name: detective
+description: "Тень числа — детективный симулятор для математиков"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management
+  flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
+
+  # Routing
+  go_router: ^14.6.2
+
+  # Models / serialization
+  freezed_annotation: ^2.4.4
+  json_annotation: ^4.9.0
+
+  # UI / fonts / animations
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.2          # композируемые анимации
+  animated_text_kit: ^4.3.0        # печатные / typewriter эффекты
+  shimmer: ^3.0.0                  # шиммер / загрузка
+  simple_animations: ^5.0.2        # tween + timeline
+  glass_kit: ^4.0.1                # glassmorphism panels
+  flutter_svg: ^2.0.16             # векторные иконки
+  gap: ^3.0.1
+
+  # Utils
+  intl: ^0.20.1
+  logger: ^2.5.0
+  collection: ^1.18.0
+  equatable: ^2.0.7
+  shared_preferences: ^2.3.3
+  window_manager: ^0.4.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  # Code generation
+  build_runner: ^2.4.13
+  freezed: ^2.5.7
+  json_serializable: ^6.9.0
+  riverpod_generator: ^2.6.3
+  custom_lint: ^0.7.0
+  riverpod_lint: ^2.6.3
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+
+  # Шрифты подключаются через google_fonts онлайн на старте;
+  # для офлайн-сборок добавьте .ttf в assets/fonts и пропишите ниже.
