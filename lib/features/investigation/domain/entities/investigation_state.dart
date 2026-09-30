@@ -42,6 +42,10 @@ class InvestigationState extends Equatable {
     required this.sortDescending,
     required this.methodResults,
     required this.derivedColumns,
+    required this.whatIfTried,
+    required this.revealedConclusions,
+    required this.clearedSuspectIds,
+    this.accusedSuspectId,
     this.selectedEvidenceId,
     this.valueFilter,
     this.activeMethod,
@@ -74,6 +78,10 @@ class InvestigationState extends Equatable {
         sortDescending: false,
         methodResults: const {},
         derivedColumns: const {},
+        whatIfTried: false,
+        revealedConclusions: const {},
+        clearedSuspectIds: const {},
+        accusedSuspectId: null,
         selectedEvidenceId: null,
         valueFilter: null,
         activeMethod: null,
@@ -123,6 +131,18 @@ class InvestigationState extends Equatable {
   /// Производные колонки, добавленные в DATA.
   final Set<DerivedColumn> derivedColumns;
 
+  /// Игрок хотя бы раз опробовал лабораторию подмены значения (этап CLEANUP).
+  final bool whatIfTried;
+
+  /// Методы, для которых игрок раскрыл словесный ВЫВОД.
+  final Set<AnalysisMethod> revealedConclusions;
+
+  /// Фигуранты, с которых игрок снял подозрение (оправдал по алиби/логам).
+  final Set<String> clearedSuspectIds;
+
+  /// Фигурант, которого игрок обвинил (привязав к нему ≥1 улику). null = нет.
+  final String? accusedSuspectId;
+
   /// Активный (последний выбранный) метод — для рендера правой панели в ANALYSIS.
   final AnalysisMethod? activeMethod;
 
@@ -138,8 +158,18 @@ class InvestigationState extends Equatable {
   final List<String>? shortestPath;
 
   bool get isExam => caseInfo.difficulty == CaseDifficulty.exam;
+  bool get isTraining => caseInfo.difficulty == CaseDifficulty.trainee;
+  bool get isPractice => caseInfo.difficulty == CaseDifficulty.practice;
 
-  int get flaggedCount => evidence.where((e) => e.flagged).length;
+  /// Финал «обвинить + оправдать»: обвинён один фигурант и со всех остальных
+  /// снято подозрение.
+  bool get accusationBuilt {
+    final accused = accusedSuspectId;
+    if (accused == null) return false;
+    return suspects
+        .where((s) => s.id != accused)
+        .every((s) => clearedSuspectIds.contains(s.id));
+  }
 
   /// Улики, прошедшие через текущий valueFilter (или все, если фильтра нет).
   List<EvidenceEntity> get filteredEvidence {
@@ -158,15 +188,13 @@ class InvestigationState extends Equatable {
   /// Числовой счётчик метрики гейта.
   int metric(StageMetric m) {
     switch (m) {
-      case StageMetric.evidenceViewed:
-        return viewedEvidenceIds.length;
-      case StageMetric.flagsPlaced:
-        return flaggedCount + (valueFilter != null ? 1 : 0);
+      case StageMetric.robustnessTried:
+        return whatIfTried ? 1 : 0;
       case StageMetric.analysisOpened:
-        // Теперь это: «применён хотя бы один метод».
+        // «применён хотя бы один метод».
         return methodResults.isEmpty ? 0 : 1;
-      case StageMetric.evidenceLinked:
-        return evidenceLinks.length;
+      case StageMetric.accusationBuilt:
+        return accusationBuilt ? 1 : 0;
     }
   }
 
@@ -205,6 +233,10 @@ class InvestigationState extends Equatable {
     bool? sortDescending,
     Map<AnalysisMethod, AnalysisResult>? methodResults,
     Set<DerivedColumn>? derivedColumns,
+    bool? whatIfTried,
+    Set<AnalysisMethod>? revealedConclusions,
+    Set<String>? clearedSuspectIds,
+    String? accusedSuspectId,
     AnalysisMethod? activeMethod,
     String? selectedEvidenceId,
     ValueFilter? valueFilter,
@@ -216,6 +248,7 @@ class InvestigationState extends Equatable {
     bool clearActiveMethod = false,
     bool clearValueFilter = false,
     bool clearPath = false,
+    bool clearAccused = false,
   }) {
     return InvestigationState(
       caseInfo: caseInfo,
@@ -236,6 +269,11 @@ class InvestigationState extends Equatable {
       sortDescending: sortDescending ?? this.sortDescending,
       methodResults: methodResults ?? this.methodResults,
       derivedColumns: derivedColumns ?? this.derivedColumns,
+      whatIfTried: whatIfTried ?? this.whatIfTried,
+      revealedConclusions: revealedConclusions ?? this.revealedConclusions,
+      clearedSuspectIds: clearedSuspectIds ?? this.clearedSuspectIds,
+      accusedSuspectId:
+          clearAccused ? null : (accusedSuspectId ?? this.accusedSuspectId),
       activeMethod: clearActiveMethod ? null : (activeMethod ?? this.activeMethod),
       selectedEvidenceId:
           clearSelection ? null : (selectedEvidenceId ?? this.selectedEvidenceId),
@@ -266,6 +304,10 @@ class InvestigationState extends Equatable {
         sortDescending,
         methodResults,
         derivedColumns,
+        whatIfTried,
+        revealedConclusions,
+        clearedSuspectIds,
+        accusedSuspectId,
         activeMethod,
         selectedEvidenceId,
         valueFilter,

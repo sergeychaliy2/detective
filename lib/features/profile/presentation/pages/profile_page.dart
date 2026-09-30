@@ -157,8 +157,7 @@ class _IdentityCard extends StatelessWidget {
               ),
             ),
             child: Text(
-              '"Сильный аналитик ценится не количеством, '
-              'а тем, скольких он защитил от шумовых выводов."',
+              '"Математика не лжёт — лжёт тот, кто не умеет её слушать"',
               style: theme.textTheme.bodySmall?.copyWith(
                 fontStyle: FontStyle.italic,
                 color: AppColors.textSecondary,
@@ -184,7 +183,24 @@ class _StatsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('METRICS //', style: theme.textTheme.labelMedium),
+          Row(
+            children: [
+              Text('МЕТРИКИ //', style: theme.textTheme.labelMedium),
+              const SizedBox(width: 10),
+              Icon(
+                Icons.touch_app_outlined,
+                size: 14,
+                color: AppColors.textMuted,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'нажмите, чтобы узнать подробнее',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 18),
           GridView.count(
             crossAxisCount: 2,
@@ -195,40 +211,68 @@ class _StatsCard extends StatelessWidget {
             childAspectRatio: 2.6,
             children: [
               _Stat(
-                label: 'EXPERIENCE',
+                label: 'ОПЫТ',
                 value: '${player.xp}',
                 color: AppColors.neonCyan,
                 icon: Icons.bolt,
+                description:
+                    'Опыт (XP) — мера глубины ваших аналитических навыков. '
+                    'Начисляется за каждое раскрытое дело: чем выше сложность, тем больше XP. '
+                    'Если использовали правильный математический метод — бонус +25%. '
+                    'Тратится на подсказки (−10 XP) и лайфхаки (−25 XP).',
               ),
               _Stat(
-                label: 'REPUTATION',
+                label: 'РЕПУТАЦИЯ',
                 value: '${player.reputation}',
                 color: AppColors.magenta,
                 icon: Icons.workspace_premium,
+                description:
+                    'Репутация (0–100) — доверие к вам как к аналитику. '
+                    'Растёт за раскрытые дела (+6 за обычное, +25% бонус за верный метод). '
+                    'Падает за судебные ошибки (−10) и откаты (−2). '
+                    'Влияет на доступность дел повышенного уровня.',
               ),
               _Stat(
-                label: 'CASES SOLVED',
+                label: 'ДЕЛ РАСКРЫТО',
                 value: '${player.solvedCount}',
                 color: AppColors.jadeSuccess,
                 icon: Icons.verified,
+                description:
+                    'Количество дел, где вы верно назвали подозреваемого и '
+                    'предъявили корректную улику-цифру в пределах допустимого отклонения. '
+                    'Это главный показатель компетентности аналитика.',
               ),
               _Stat(
-                label: 'JUDICIAL ERRORS',
+                label: 'СУДЕБНЫЕ ОШИБКИ',
                 value: '${player.failedCount}',
                 color: AppColors.crimsonError,
                 icon: Icons.gavel,
+                description:
+                    'Провальные расследования: неверно названный подозреваемый '
+                    'или улика-цифра за пределами допустимого отклонения. '
+                    'Каждая ошибка стоит половины наградного XP дела и −10 репутации. '
+                    'Если не в режиме EXAM — можно активировать откат.',
               ),
               _Stat(
-                label: 'ACCURACY',
+                label: 'ТОЧНОСТЬ',
                 value: '${player.accuracy}%',
                 color: AppColors.hologramBlue,
                 icon: Icons.center_focus_strong,
+                description:
+                    'Процент верно закрытых дел от всех завершённых расследований. '
+                    '100% означает, что ни одного обвинения не было предъявлено '
+                    'ошибочно. Главный показатель при отборе в дела уровня EXAM.',
               ),
               _Stat(
-                label: 'ROLLBACKS',
+                label: 'ОТКАТЫ',
                 value: '${player.rollbackCount}',
                 color: AppColors.amberWarning,
                 icon: Icons.history,
+                description:
+                    'Сколько раз вы активировали TIME MACHINE — возврат '
+                    'к предыдущему этапу расследования. '
+                    'Каждый откат стоит 30 XP и 2 единицы репутации. '
+                    'В режиме EXAM откаты недоступны.',
               ),
             ],
           ),
@@ -238,49 +282,184 @@ class _StatsCard extends StatelessWidget {
   }
 }
 
-class _Stat extends StatelessWidget {
+class _Stat extends StatefulWidget {
   const _Stat({
     required this.label,
     required this.value,
     required this.color,
     required this.icon,
+    required this.description,
   });
 
   final String label;
   final String value;
   final Color color;
   final IconData icon;
+  final String description;
+
+  @override
+  State<_Stat> createState() => _StatState();
+}
+
+class _StatState extends State<_Stat> {
+  bool _hover = false;
+
+  void _showInfo(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      barrierColor: AppColors.voidBlack.withValues(alpha: 0.75),
+      builder: (ctx) => Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Container(
+            margin: const EdgeInsets.all(32),
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: AppColors.panelBg,
+              border: Border.all(color: widget.color.withValues(alpha: 0.8), width: 1.2),
+              boxShadow: [
+                BoxShadow(
+                  color: widget.color.withValues(alpha: 0.3),
+                  blurRadius: 28,
+                  spreadRadius: -4,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(widget.icon, color: widget.color, size: 22),
+                    const SizedBox(width: 12),
+                    Text(
+                      widget.label,
+                      style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
+                            color: widget.color,
+                            letterSpacing: 3,
+                          ),
+                    ),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => Navigator.of(ctx).pop(),
+                      child: Icon(
+                        Icons.close,
+                        color: AppColors.textMuted,
+                        size: 18,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Container(height: 1, color: widget.color.withValues(alpha: 0.3)),
+                const SizedBox(height: 16),
+                Text(
+                  widget.description,
+                  style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                        height: 1.65,
+                      ),
+                ),
+                const SizedBox(height: 20),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(ctx).pop(),
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 18, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: widget.color.withValues(alpha: 0.1),
+                          border: Border.all(
+                              color: widget.color.withValues(alpha: 0.6)),
+                        ),
+                        child: Text(
+                          'ПОНЯТНО',
+                          style:
+                              Theme.of(ctx).textTheme.labelMedium?.copyWith(
+                                    color: widget.color,
+                                    letterSpacing: 2.5,
+                                  ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
-        border: Border(left: BorderSide(color: color, width: 3)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: () => _showInfo(context),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: widget.color.withValues(alpha: _hover ? 0.12 : 0.06),
+            border: Border(left: BorderSide(color: widget.color, width: 3)),
+            boxShadow: _hover
+                ? [
+                    BoxShadow(
+                      color: widget.color.withValues(alpha: 0.2),
+                      blurRadius: 12,
+                      spreadRadius: -2,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
             children: [
-              Text(label,
-                  style: theme.textTheme.labelSmall?.copyWith(letterSpacing: 2)),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: color,
-                  letterSpacing: 1,
+              Icon(widget.icon, color: widget.color, size: 24),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          widget.label,
+                          style: theme.textTheme.labelSmall
+                              ?.copyWith(letterSpacing: 2),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.info_outline,
+                          size: 10,
+                          color: AppColors.textMuted
+                              .withValues(alpha: _hover ? 0.9 : 0.5),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.value,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: widget.color,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }

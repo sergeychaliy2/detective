@@ -67,6 +67,7 @@ class CaseEntity extends Equatable {
     required this.solutionEvidenceKindIndex,
     required this.theoryHints,
     required this.solutionMethod,
+    this.isTutorial = false,
     this.noiseMean = 1500,
     this.noiseStd = 600,
   });
@@ -109,6 +110,9 @@ class CaseEntity extends Equatable {
   /// и подсвечивается в OutcomeOverlay как «элегантное решение».
   final AnalysisMethod solutionMethod;
 
+  /// Дело-туториал: помечается бейджем «ТУТОРИАЛ» и ведёт игрока пошагово.
+  final bool isTutorial;
+
   /// Параметры шумового распределения для процедурной генерации улик.
   final num noiseMean;
   final num noiseStd;
@@ -137,6 +141,7 @@ class CaseEntity extends Equatable {
         solutionEvidenceKindIndex: solutionEvidenceKindIndex,
         theoryHints: theoryHints,
         solutionMethod: solutionMethod,
+        isTutorial: isTutorial,
         noiseMean: noiseMean,
         noiseStd: noiseStd,
       );
@@ -161,6 +166,7 @@ class CaseEntity extends Equatable {
         solutionEvidenceKindIndex,
         theoryHints,
         solutionMethod,
+        isTutorial,
         noiseMean,
         noiseStd,
       ];

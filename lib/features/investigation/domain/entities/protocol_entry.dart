@@ -3,8 +3,11 @@ import 'package:equatable/equatable.dart';
 import 'investigation_stage.dart';
 
 enum ProtocolKind {
-  flag('ОТМЕТКА', '⚑'),
+  whatif('ПОДМЕНА', '≈'),
   link('ПРИВЯЗКА', '⇄'),
+  accuse('ОБВИНЕНИЕ', '§'),
+  clear('ОПРАВДАНИЕ', '✓'),
+  reveal('ВЫВОД', '✶'),
   hint('ПОДСКАЗКА', '?'),
   lifehack('ЛАЙФХАК', '!'),
   stage('ПЕРЕХОД', '→'),
@@ -12,7 +15,7 @@ enum ProtocolKind {
   filter('ФИЛЬТР', '∩'),
   derived('КОЛОНКА', 'Δ'),
   path('ПУТЬ', '⇢'),
-  verdict('ВЕРДИКТ', '§');
+  verdict('ВЕРДИКТ', '⚖');
 
   const ProtocolKind(this.label, this.glyph);
   final String label;
@@ -27,6 +30,7 @@ class ProtocolEntry extends Equatable {
     required this.stage,
     required this.kind,
     required this.message,
+    this.evidenceId,
   });
 
   final DateTime timestamp;
@@ -34,6 +38,10 @@ class ProtocolEntry extends Equatable {
   final ProtocolKind kind;
   final String message;
 
+  /// Улика, к которой относится запись (если есть). Делает строку протокола
+  /// кликабельной — выделить улику и быстро привязать к фигуранту.
+  final String? evidenceId;
+
   @override
-  List<Object?> get props => [timestamp, stage, kind, message];
+  List<Object?> get props => [timestamp, stage, kind, message, evidenceId];
 }

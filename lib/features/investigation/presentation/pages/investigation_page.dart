@@ -13,6 +13,7 @@ import '../../domain/entities/investigation_state.dart';
 import '../providers/investigation_provider.dart';
 import '../widgets/investigation_header.dart';
 import '../widgets/overlays/outcome_overlay.dart';
+import '../widgets/overlays/tutorial_overlay.dart';
 import '../widgets/overlays/verdict_overlay.dart';
 import '../widgets/protocol_panel.dart';
 import '../widgets/side_rail.dart';
@@ -98,7 +99,10 @@ class InvestigationPage extends ConsumerWidget {
                                 child: Padding(
                                   padding: const EdgeInsets.fromLTRB(
                                       0, 12, 24, 24),
-                                  child: ProtocolPanel(entries: state.protocol),
+                                  child: ProtocolPanel(
+                                    entries: state.protocol,
+                                    onSelectEvidence: notifier.touchEvidence,
+                                  ),
                                 ),
                               ),
                             ],
@@ -116,11 +120,16 @@ class InvestigationPage extends ConsumerWidget {
               evidence: state.evidence,
               evidenceLinks: state.evidenceLinks,
               methodResults: state.methodResults,
+              accusedSuspectId: state.accusedSuspectId,
               onCancel: notifier.cancelVerdict,
               onSubmit: (suspectId, value) {
                 notifier.submitVerdict(suspectId: suspectId, value: value);
               },
             ),
+          if (TutorialOverlay.showFor(caseId) &&
+              (state == null || state.outcome == null) &&
+              (state == null || !state.verdictRequested))
+            TutorialOverlay(caseId: caseId),
           if (state != null && state.outcome != null)
             OutcomeOverlay(
               state: state,
@@ -149,7 +158,7 @@ class InvestigationPage extends ConsumerWidget {
         return DataTab(
           state: state,
           onSelect: notifier.touchEvidence,
-          onToggleFlag: notifier.toggleFlag,
+          onWhatIfTried: notifier.markWhatIfTried,
           onToggleSort: notifier.toggleSort,
           onApplyFilter: (min, max) =>
               notifier.setValueFilter(min: min, max: max),
@@ -163,6 +172,7 @@ class InvestigationPage extends ConsumerWidget {
           onSelectMethod: notifier.selectMethod,
           onRemoveMethod: notifier.removeMethod,
           onSelectEvidence: notifier.touchEvidence,
+          onReveal: notifier.revealConclusion,
         );
       case WorkspaceTab.network:
         return NetworkTab(
@@ -175,6 +185,8 @@ class InvestigationPage extends ConsumerWidget {
         return SuspectsTab(
           state: state,
           onLink: notifier.linkSelectedEvidenceTo,
+          onAccuse: notifier.accuseSuspect,
+          onClear: notifier.clearSuspect,
         );
       case WorkspaceTab.mentor:
         return MentorTab(

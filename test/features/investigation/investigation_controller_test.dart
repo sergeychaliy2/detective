@@ -8,6 +8,7 @@ import 'package:detective/features/profile/data/shared_prefs_player_storage.dart
 import 'package:detective/features/profile/presentation/providers/player_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 ProviderContainer _container() => ProviderContainer(
       overrides: [
@@ -20,6 +21,11 @@ Future<void> _hydrate(ProviderContainer c) async {
 }
 
 void main() {
+  // InvestigationPersistence — статический синглтон поверх SharedPreferences;
+  // в тестах инициализируем биндинг и подменяем хранилище in-memory мок-ом.
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   group('InvestigationController', () {
     test('старт расследования помечает дело in-progress и lastCaseId', () async {
       final c = _container();
@@ -33,39 +39,77 @@ void main() {
       c.dispose();
     });
 
-    test('гейтинг: нельзя перейти со стадии I пока не просмотрено 6 улик', () async {
+    test('intake без гейта: переход открыт сразу', () async {
       final c = _container();
       await _hydrate(c);
       final notifier = c.read(investigationProvider('sn-001').notifier);
-      var s = c.read(investigationProvider('sn-001'))!;
-      expect(s.canAdvance, false);
+      final s = c.read(investigationProvider('sn-001'))!;
+      expect(s.currentStage, InvestigationStage.intake);
+      expect(s.canAdvance, true, reason: 'intake больше не требует условий');
 
-      notifier.advanceStage();
-      s = c.read(investigationProvider('sn-001'))!;
-      expect(s.currentStage, InvestigationStage.intake,
-          reason: 'без выполнения требований стадия не должна меняться');
-
-      // Просматриваем 6 улик.
-      for (var i = 0; i < 6; i++) {
-        notifier.touchEvidence('EV-${i.toString().padLeft(4, '0')}');
-      }
-      s = c.read(investigationProvider('sn-001'))!;
-      expect(s.canAdvance, true);
       notifier.advanceStage();
       expect(c.read(investigationProvider('sn-001'))!.currentStage,
           InvestigationStage.cleanup);
       c.dispose();
     });
 
-    test('toggleFlag увеличивает flaggedCount и пишет ProtocolEntry', () async {
+    test('markWhatIfTried ставит whatIfTried и пишет ProtocolEntry whatif', () async {
       final c = _container();
       await _hydrate(c);
       final notifier = c.read(investigationProvider('sn-001').notifier);
-      notifier.toggleFlag('EV-0001');
+      notifier.markWhatIfTried();
       final s = c.read(investigationProvider('sn-001'))!;
-      expect(s.evidence.firstWhere((e) => e.id == 'EV-0001').flagged, true);
+      expect(s.whatIfTried, true);
       expect(s.protocol, isNotEmpty);
-      expect(s.protocol.first.message, contains('EV-0001'));
+      expect(s.protocol.first.kind.name, 'whatif');
+      c.dispose();
+    });
+
+    test('обвинение требует привязки; accusationBuilt после обвинить+оправдать',
+        () async {
+      final c = _container();
+      await _hydrate(c);
+      // sn-007: два фигуранта — S1 (виновный) и S2.
+      final notifier = c.read(investigationProvider('sn-007').notifier);
+      // Без привязки обвинение игнорируется.
+      notifier.accuseSuspect('S1');
+      expect(c.read(investigationProvider('sn-007'))!.accusedSuspectId, isNull);
+      // Привязываем улику к S1 → теперь можно обвинить.
+      notifier.touchEvidence('EV-0007');
+      notifier.linkSelectedEvidenceTo('S1');
+      notifier.accuseSuspect('S1');
+      var s = c.read(investigationProvider('sn-007'))!;
+      expect(s.accusedSuspectId, 'S1');
+      expect(s.accusationBuilt, false,
+          reason: 'второй фигурант ещё не оправдан');
+      notifier.clearSuspect('S2');
+      s = c.read(investigationProvider('sn-007'))!;
+      expect(s.accusationBuilt, true);
+      c.dispose();
+    });
+
+    test('revealConclusion: бесплатно в обучении, со штрафом в практике', () async {
+      final c = _container();
+      await _hydrate(c);
+      // sn-007 — обучающее: раскрытие бесплатно.
+      final trainee = c.read(investigationProvider('sn-007').notifier);
+      trainee.applyMethod(AnalysisMethod.benford);
+      final xpTrainee = c.read(playerProvider).xp;
+      trainee.revealConclusion(AnalysisMethod.benford);
+      expect(
+          c.read(investigationProvider('sn-007'))!.revealedConclusions
+              .contains(AnalysisMethod.benford),
+          true);
+      expect(c.read(playerProvider).xp, xpTrainee,
+          reason: 'в обучении раскрытие бесплатно');
+
+      // sn-002 — практика: раскрытие списывает рейтинг.
+      final practice = c.read(investigationProvider('sn-002').notifier);
+      practice.applyMethod(AnalysisMethod.mad);
+      final xpBefore = c.read(playerProvider).xp;
+      practice.revealConclusion(AnalysisMethod.mad);
+      expect(c.read(playerProvider).xp, lessThan(xpBefore),
+          reason: 'в практике раскрытие стоит рейтинга');
       c.dispose();
     });
 
@@ -88,7 +132,7 @@ void main() {
       await _hydrate(c);
       final cases = await c.read(caseListProvider.future);
       final tutorial =
-          cases.firstWhere((x) => x.id == 'sn-006'); // sn-006 = tutorial
+          cases.firstWhere((x) => x.id == 'sn-007'); // sn-007 = tutorial
       final notifier = c.read(investigationProvider(tutorial.id).notifier);
 
       // Перепрыгиваем гейтинг через прямой submitVerdict.
@@ -108,7 +152,7 @@ void main() {
       final c = _container();
       await _hydrate(c);
       final cases = await c.read(caseListProvider.future);
-      final tutorial = cases.firstWhere((x) => x.id == 'sn-006');
+      final tutorial = cases.firstWhere((x) => x.id == 'sn-007');
       final notifier = c.read(investigationProvider(tutorial.id).notifier);
       final correct = notifier.submitVerdict(suspectId: 'S99', value: 0);
       expect(correct, false);
@@ -128,7 +172,7 @@ void main() {
       expect(notifier.requestLifehack(), isNull);
 
       // Создадим хоть какое-то "поведение" чтобы было что откатывать.
-      notifier.toggleFlag('EV-0001');
+      notifier.markWhatIfTried();
       final repBefore = c.read(playerProvider).rollbackCount;
       notifier.rollback();
       expect(c.read(playerProvider).rollbackCount, repBefore,
@@ -167,14 +211,11 @@ void main() {
       final c = _container();
       await _hydrate(c);
       final notifier = c.read(investigationProvider('sn-001').notifier);
-      // Удовлетворяем intake.
-      for (var i = 0; i < 6; i++) {
-        notifier.touchEvidence('EV-${i.toString().padLeft(4, '0')}');
-      }
-      notifier.advanceStage(); // → cleanup
-      // Удовлетворяем cleanup (2 флага).
-      notifier.toggleFlag('EV-0001');
-      notifier.toggleFlag('EV-0002');
+      notifier.advanceStage(); // intake → cleanup (без гейта)
+      expect(c.read(investigationProvider('sn-001'))!.currentStage,
+          InvestigationStage.cleanup);
+      // Удовлетворяем cleanup: проба подмены значения.
+      notifier.markWhatIfTried();
       notifier.advanceStage(); // → analysis
       var s = c.read(investigationProvider('sn-001'))!;
       expect(s.currentStage, InvestigationStage.analysis);
@@ -241,7 +282,7 @@ void main() {
       final c = _container();
       await _hydrate(c);
       final cases = await c.read(caseListProvider.future);
-      final tutorial = cases.firstWhere((x) => x.id == 'sn-006');
+      final tutorial = cases.firstWhere((x) => x.id == 'sn-007');
       final notifier = c.read(investigationProvider(tutorial.id).notifier);
       // Применяем optimal-метод.
       notifier.applyMethod(tutorial.solutionMethod);

@@ -20,7 +20,6 @@ EvidenceEntity _ev(String id, String? owner) => EvidenceEntity(
       source: '',
       summary: '',
       value: 0,
-      flagged: false,
       suspectId: owner,
     );
 

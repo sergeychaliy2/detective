@@ -20,7 +20,6 @@ class EvidenceEntity extends Equatable {
     required this.source,
     required this.summary,
     required this.value,
-    required this.flagged,
     this.suspectId,
     this.isSmokingGun = false,
   });
@@ -31,7 +30,6 @@ class EvidenceEntity extends Equatable {
   final String source;
   final String summary;
   final num value;
-  final bool flagged;
 
   /// Указывает на подозреваемого, к которому ассоциирована улика
   /// (для smoking-gun-улики совпадает с solutionSuspectId).
@@ -41,18 +39,6 @@ class EvidenceEntity extends Equatable {
   /// Лайфхак подсвечивает именно её.
   final bool isSmokingGun;
 
-  EvidenceEntity copyWith({bool? flagged}) => EvidenceEntity(
-        id: id,
-        timestamp: timestamp,
-        kind: kind,
-        source: source,
-        summary: summary,
-        value: value,
-        flagged: flagged ?? this.flagged,
-        suspectId: suspectId,
-        isSmokingGun: isSmokingGun,
-      );
-
   @override
   List<Object?> get props => [
         id,
@@ -61,7 +47,6 @@ class EvidenceEntity extends Equatable {
         source,
         summary,
         value,
-        flagged,
         suspectId,
         isSmokingGun,
       ];

@@ -9,9 +9,17 @@ import '../../domain/entities/protocol_entry.dart';
 /// Лента протокола расследования: что и почему сделал игрок.
 /// Показывается в правой колонке (тонкая, всегда на виду).
 class ProtocolPanel extends StatelessWidget {
-  const ProtocolPanel({super.key, required this.entries});
+  const ProtocolPanel({
+    super.key,
+    required this.entries,
+    this.onSelectEvidence,
+  });
 
   final List<ProtocolEntry> entries;
+
+  /// Клик по записи, относящейся к улике, выделяет её — затем можно
+  /// перейти в SUSPECTS и привязать.
+  final ValueChanged<String>? onSelectEvidence;
 
   @override
   Widget build(BuildContext context) {
@@ -51,8 +59,11 @@ class ProtocolPanel extends StatelessWidget {
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     itemCount: entries.length,
-                    itemBuilder: (context, i) =>
-                        _Entry(entry: entries[i], fmt: fmt),
+                    itemBuilder: (context, i) => _Entry(
+                      entry: entries[i],
+                      fmt: fmt,
+                      onSelectEvidence: onSelectEvidence,
+                    ),
                   ),
           ),
         ],
@@ -62,15 +73,23 @@ class ProtocolPanel extends StatelessWidget {
 }
 
 class _Entry extends StatelessWidget {
-  const _Entry({required this.entry, required this.fmt});
+  const _Entry({
+    required this.entry,
+    required this.fmt,
+    required this.onSelectEvidence,
+  });
   final ProtocolEntry entry;
   final DateFormat fmt;
+  final ValueChanged<String>? onSelectEvidence;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final c = _color(entry.kind);
-    return Container(
+    final eid = entry.evidenceId;
+    final clickable = eid != null && onSelectEvidence != null;
+
+    final body = Container(
       margin: const EdgeInsets.symmetric(vertical: 3),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
@@ -115,17 +134,53 @@ class _Entry extends StatelessWidget {
               height: 1.4,
             ),
           ),
+          if (clickable) ...[
+            const SizedBox(height: 3),
+            Row(
+              children: [
+                Icon(Icons.ads_click, size: 11,
+                    color: AppColors.neonCyan.withValues(alpha: 0.8)),
+                const SizedBox(width: 4),
+                Text(
+                  'выделить $eid → привязать',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: AppColors.neonCyan.withValues(alpha: 0.8),
+                    letterSpacing: 0.5,
+                    fontSize: 9,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
-    ).animate().fadeIn(duration: 280.ms);
+    );
+
+    final wrapped = clickable
+        ? MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () => onSelectEvidence!(eid),
+              child: body,
+            ),
+          )
+        : body;
+
+    return wrapped.animate().fadeIn(duration: 280.ms);
   }
 
   Color _color(ProtocolKind k) {
     switch (k) {
-      case ProtocolKind.flag:
-        return AppColors.crimsonError;
+      case ProtocolKind.whatif:
+        return AppColors.jadeSuccess;
       case ProtocolKind.link:
         return AppColors.violet;
+      case ProtocolKind.accuse:
+        return AppColors.magenta;
+      case ProtocolKind.clear:
+        return AppColors.jadeSuccess;
+      case ProtocolKind.reveal:
+        return AppColors.amberWarning;
       case ProtocolKind.hint:
         return AppColors.amberWarning;
       case ProtocolKind.lifehack:

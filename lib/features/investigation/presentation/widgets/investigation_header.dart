@@ -68,6 +68,10 @@ class InvestigationHeader extends StatelessWidget {
               Text(c.title,
                   style: theme.textTheme.titleLarge
                       ?.copyWith(letterSpacing: 1.4)),
+              if (c.isTutorial) ...[
+                const SizedBox(width: 14),
+                _TutorialBadge(),
+              ],
               if (state.isExam) ...[
                 const SizedBox(width: 14),
                 _ExamBadge(),
@@ -107,6 +111,34 @@ class _ExamBadge extends StatelessWidget {
               color: AppColors.crimsonError,
               letterSpacing: 3,
             ),
+      ),
+    );
+  }
+}
+
+class _TutorialBadge extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.jadeSuccess.withValues(alpha: 0.12),
+        border: Border.all(color: AppColors.jadeSuccess, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.school_outlined,
+              size: 13, color: AppColors.jadeSuccess),
+          const SizedBox(width: 6),
+          Text(
+            'ТУТОРИАЛ',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppColors.jadeSuccess,
+                  letterSpacing: 3,
+                ),
+          ),
+        ],
       ),
     );
   }

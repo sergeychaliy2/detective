@@ -4,6 +4,7 @@ import '../../../case_board/domain/entities/case_entity.dart';
 import '../../../case_board/presentation/providers/case_board_providers.dart';
 import '../../../profile/domain/entities/player_state.dart';
 import '../../../profile/presentation/providers/player_provider.dart';
+import '../../data/investigation_persistence.dart';
 import '../../data/investigation_seed.dart';
 import '../../domain/entities/analysis_method.dart';
 import '../../domain/entities/analysis_result.dart';
@@ -13,37 +14,61 @@ import '../../domain/entities/protocol_entry.dart';
 import '../../domain/services/graph_metrics.dart';
 import '../../domain/services/statistical_methods.dart';
 
-/// Стоимость подсказки и лайфхака (XP / репутация).
+/// Стоимость подсказки, лайфхака и раскрытия вывода (XP / репутация).
 class _MentorCost {
   static const int hintXp = 10;
   static const int hintRep = 1;
   static const int lifehackXp = 25;
   static const int lifehackRep = 3;
+  static const int revealXp = 8;
+  static const int revealRep = 1;
 }
 
 class InvestigationController extends StateNotifier<InvestigationState?> {
-  InvestigationController(this._ref, CaseEntity? caseInfo)
-      : super(_initial(caseInfo)) {
+  InvestigationController(this._ref, CaseEntity? caseInfo, this._caseId)
+      : super(_freshState(caseInfo)) {
     if (caseInfo != null) {
-      Future<void>.microtask(() {
+      Future<void>.microtask(() async {
         try {
           _ref
               .read(playerProvider.notifier)
               .markInProgress(caseId: caseInfo.id);
         } catch (_) {}
+        await _restorePersistedState();
       });
     }
   }
 
   final Ref _ref;
+  final String _caseId;
 
-  static InvestigationState? _initial(CaseEntity? c) {
+  static InvestigationState? _freshState(CaseEntity? c) {
     if (c == null) return null;
     return InvestigationState.initial(
       caseInfo: c,
       evidence: InvestigationSeed.evidenceFor(c),
       suspects: InvestigationSeed.suspectsFor(c.id),
     );
+  }
+
+  Future<void> _restorePersistedState() async {
+    // Игрок мог уйти со страницы, пока шло восстановление — не трогаем
+    // disposed-нотифаер (и не падаем, если хранилище недоступно).
+    if (!mounted) return;
+    final s = state;
+    if (s == null) return;
+    try {
+      final restored = await InvestigationPersistence.restore(_caseId, s);
+      if (mounted) state = restored;
+    } catch (_) {}
+  }
+
+  /// Вызывается провайдером при dispose — сохраняет текущий прогресс.
+  void persistState() {
+    final s = state;
+    if (s != null) {
+      InvestigationPersistence.save(_caseId, s);
+    }
   }
 
   // ───────── Вкладки и просмотр улик ────────────────────────────────
@@ -83,24 +108,19 @@ class InvestigationController extends StateNotifier<InvestigationState?> {
     state = s.copyWith(sortDescending: !s.sortDescending);
   }
 
-  void toggleFlag(String evidenceId) {
+  /// Игрок опробовал лабораторию подмены значения (этап CLEANUP) — это и есть
+  /// «выдающееся» вместо флагов: наглядно, как один выброс ломает среднее.
+  void markWhatIfTried() {
     final s = state;
-    if (s == null) return;
-    final next = [
-      for (final e in s.evidence)
-        if (e.id == evidenceId) e.copyWith(flagged: !e.flagged) else e,
-    ];
-    final touched = {...s.viewedEvidenceIds, evidenceId};
-    final flippedTo = next.firstWhere((e) => e.id == evidenceId).flagged;
+    if (s == null || s.whatIfTried) return;
     final entry = ProtocolEntry(
       timestamp: DateTime.now(),
       stage: s.currentStage,
-      kind: ProtocolKind.flag,
-      message: flippedTo ? 'FLAG SET // $evidenceId' : 'FLAG OFF // $evidenceId',
+      kind: ProtocolKind.whatif,
+      message: 'WHAT-IF // проверена чувствительность среднего к выбросу',
     );
     state = s.copyWith(
-      evidence: next,
-      viewedEvidenceIds: touched,
+      whatIfTried: true,
       protocol: [entry, ...s.protocol],
     );
   }
@@ -116,9 +136,59 @@ class InvestigationController extends StateNotifier<InvestigationState?> {
       stage: s.currentStage,
       kind: ProtocolKind.link,
       message: 'LINK // $eid → $suspectId',
+      evidenceId: eid,
     );
     state = s.copyWith(
       evidenceLinks: next,
+      protocol: [entry, ...s.protocol],
+    );
+  }
+
+  /// Обвинить фигуранта. Требует ≥1 улики, привязанной к нему (обоснование),
+  /// иначе обвинение «голословно» и игнорируется.
+  void accuseSuspect(String suspectId) {
+    final s = state;
+    if (s == null) return;
+    final hasLink = s.evidenceLinks.values.contains(suspectId);
+    if (!hasLink) return;
+    // Обвинённого нельзя одновременно держать оправданным.
+    final cleared = {...s.clearedSuspectIds}..remove(suspectId);
+    final entry = ProtocolEntry(
+      timestamp: DateTime.now(),
+      stage: s.currentStage,
+      kind: ProtocolKind.accuse,
+      message: 'ОБВИНЕНИЕ // $suspectId',
+    );
+    state = s.copyWith(
+      accusedSuspectId: suspectId,
+      clearedSuspectIds: cleared,
+      protocol: [entry, ...s.protocol],
+    );
+  }
+
+  /// Снять/вернуть подозрение с фигуранта (оправдание по алиби/логам).
+  void clearSuspect(String suspectId) {
+    final s = state;
+    if (s == null) return;
+    final already = s.clearedSuspectIds.contains(suspectId);
+    final cleared = {...s.clearedSuspectIds};
+    if (already) {
+      cleared.remove(suspectId);
+    } else {
+      cleared.add(suspectId);
+    }
+    // Нельзя оправдывать того, кого обвиняешь — снимаем обвинение.
+    final removingAccusation = !already && s.accusedSuspectId == suspectId;
+    final entry = ProtocolEntry(
+      timestamp: DateTime.now(),
+      stage: s.currentStage,
+      kind: ProtocolKind.clear,
+      message:
+          already ? 'ПОДОЗРЕНИЕ ВЕРНУЛИ // $suspectId' : 'ОПРАВДАНИЕ // $suspectId',
+    );
+    state = s.copyWith(
+      clearedSuspectIds: cleared,
+      clearAccused: removingAccusation,
       protocol: [entry, ...s.protocol],
     );
   }
@@ -165,6 +235,31 @@ class InvestigationController extends StateNotifier<InvestigationState?> {
       activeMethod: s.activeMethod == method ? null : s.activeMethod,
       clearActiveMethod: s.activeMethod == method,
     );
+  }
+
+  /// Раскрыть словесный ВЫВОД метода. В обучении — бесплатно; в практике
+  /// стоит рейтинга; на экзамене недоступно (UI не даёт кнопку).
+  void revealConclusion(AnalysisMethod method) {
+    final s = state;
+    if (s == null || s.isExam) return;
+    if (!s.methodResults.containsKey(method)) return;
+    if (s.revealedConclusions.contains(method)) return;
+    final entry = ProtocolEntry(
+      timestamp: DateTime.now(),
+      stage: s.currentStage,
+      kind: ProtocolKind.reveal,
+      message: 'ВЫВОД // ${method.code} раскрыт',
+    );
+    state = s.copyWith(
+      revealedConclusions: {...s.revealedConclusions, method},
+      protocol: [entry, ...s.protocol],
+    );
+    if (s.caseInfo.difficulty == CaseDifficulty.practice) {
+      _ref.read(playerProvider.notifier).chargeReveal(
+            amount: _MentorCost.revealXp,
+            reputationLoss: _MentorCost.revealRep,
+          );
+    }
   }
 
   // ───────── DATA: фильтр и derived columns ─────────────────────────
@@ -311,6 +406,7 @@ class InvestigationController extends StateNotifier<InvestigationState?> {
       kind: ProtocolKind.lifehack,
       message:
           'LIFEHACK // smoking-gun = ${gun.id}, value=${gun.value}, suspect=${gun.suspectId}',
+      evidenceId: gun.id,
     );
     state = s.copyWith(
       lifehackUsed: true,
@@ -401,6 +497,8 @@ class InvestigationController extends StateNotifier<InvestigationState?> {
           outcome: outcome,
           rewardXp: reward,
         );
+    // Расследование закрыто — сбросить снапшот, чтобы следующий старт был чистым
+    InvestigationPersistence.clear(_caseId);
     return correct;
   }
 
@@ -442,6 +540,9 @@ final investigationProvider = StateNotifierProvider.family
           list.firstWhere((x) => x.id == caseId, orElse: () => list.first),
       orElse: () => null,
     );
-    return InvestigationController(ref, c);
+    final ctrl = InvestigationController(ref, c, caseId);
+    // Сохранять прогресс при уходе со страницы расследования
+    ref.onDispose(ctrl.persistState);
+    return ctrl;
   },
 );

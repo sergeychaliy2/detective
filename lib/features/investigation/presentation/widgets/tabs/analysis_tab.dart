@@ -6,8 +6,10 @@ import '../../../../../core/theme/app_theme.dart';
 import '../../../../../core/widgets/panels/neon_panel.dart';
 import '../../../domain/entities/analysis_method.dart';
 import '../../../domain/entities/analysis_result.dart';
+import '../../../domain/entities/evidence_entity.dart';
 import '../../../domain/entities/investigation_state.dart';
 import '../../../domain/services/statistical_methods.dart';
+import '../charts/benford_chart.dart';
 
 /// Вкладка ANALYSIS — переключатель аналитических методов и панель
 /// результата. Слева — методы, справа — выбранный/последний применённый
@@ -20,6 +22,7 @@ class AnalysisTab extends StatelessWidget {
     required this.onSelectMethod,
     required this.onRemoveMethod,
     required this.onSelectEvidence,
+    required this.onReveal,
   });
 
   final InvestigationState state;
@@ -27,12 +30,15 @@ class AnalysisTab extends StatelessWidget {
   final ValueChanged<AnalysisMethod> onSelectMethod;
   final ValueChanged<AnalysisMethod> onRemoveMethod;
   final ValueChanged<String> onSelectEvidence;
+  final ValueChanged<AnalysisMethod> onReveal;
 
   @override
   Widget build(BuildContext context) {
     final desc = StatisticalMethods.describe(state.evidence);
     final active = state.activeMethod;
     final result = active == null ? null : state.methodResults[active];
+    // Подсветку «оптимального» метода даём только в обучении.
+    final showOptimal = state.isTraining;
 
     return Column(
       children: [
@@ -44,6 +50,7 @@ class AnalysisTab extends StatelessWidget {
                 width: 320,
                 child: _MethodListPanel(
                   state: state,
+                  showOptimal: showOptimal,
                   onApply: onApplyMethod,
                   onSelect: onSelectMethod,
                   onRemove: onRemoveMethod,
@@ -55,8 +62,14 @@ class AnalysisTab extends StatelessWidget {
                     ? _EmptyResultPanel(state: state, desc: desc)
                     : _ResultPanel(
                         result: result,
+                        evidence: state.evidence,
                         isSolutionMethod:
-                            active == state.caseInfo.solutionMethod,
+                            showOptimal && active == state.caseInfo.solutionMethod,
+                        revealed: active != null &&
+                            state.revealedConclusions.contains(active),
+                        canReveal: !state.isExam,
+                        costsRating: state.isPractice,
+                        onReveal: () => onReveal(active!),
                         onSelectEvidence: onSelectEvidence,
                         onRemove: () => onRemoveMethod(active!),
                       ),
@@ -74,12 +87,14 @@ class AnalysisTab extends StatelessWidget {
 class _MethodListPanel extends StatelessWidget {
   const _MethodListPanel({
     required this.state,
+    required this.showOptimal,
     required this.onApply,
     required this.onSelect,
     required this.onRemove,
   });
 
   final InvestigationState state;
+  final bool showOptimal;
   final ValueChanged<AnalysisMethod> onApply;
   final ValueChanged<AnalysisMethod> onSelect;
   final ValueChanged<AnalysisMethod> onRemove;
@@ -118,7 +133,7 @@ class _MethodListPanel extends StatelessWidget {
                   method: m,
                   result: result,
                   isActive: state.activeMethod == m,
-                  isSolution: m == state.caseInfo.solutionMethod,
+                  isSolution: showOptimal && m == state.caseInfo.solutionMethod,
                   onApply: () => onApply(m),
                   onSelect: () => onSelect(m),
                   onRemove: () => onRemove(m),
@@ -295,13 +310,23 @@ class _MethodCardState extends State<_MethodCard> {
 class _ResultPanel extends StatelessWidget {
   const _ResultPanel({
     required this.result,
+    required this.evidence,
     required this.isSolutionMethod,
+    required this.revealed,
+    required this.canReveal,
+    required this.costsRating,
+    required this.onReveal,
     required this.onSelectEvidence,
     required this.onRemove,
   });
 
   final AnalysisResult result;
+  final List<EvidenceEntity> evidence;
   final bool isSolutionMethod;
+  final bool revealed;
+  final bool canReveal;
+  final bool costsRating;
+  final VoidCallback onReveal;
   final ValueChanged<String> onSelectEvidence;
   final VoidCallback onRemove;
 
@@ -390,10 +415,41 @@ class _ResultPanel extends StatelessWidget {
           const SizedBox(height: 14),
           _FormulaBox(formula: m.formula, color: m.color),
           const SizedBox(height: 10),
-          Text(
-            result.summary,
-            style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+          // ПОСЧИТАНО — нейтральные числа, видно всегда.
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.deepNavy.withValues(alpha: 0.4),
+              border: Border(
+                left: BorderSide(
+                    color: m.color.withValues(alpha: 0.5), width: 2),
+              ),
+            ),
+            child: Text(
+              result.readout,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                height: 1.5,
+                fontFamily: 'JetBrainsMono',
+              ),
+            ),
           ),
+          const SizedBox(height: 10),
+          _ConclusionReveal(
+            conclusion: result.conclusion,
+            revealed: revealed,
+            canReveal: canReveal,
+            costsRating: costsRating,
+            onReveal: onReveal,
+          ),
+          if (m == AnalysisMethod.benford) ...[
+            const SizedBox(height: 16),
+            BenfordChart(
+              distribution:
+                  StatisticalMethods.firstDigitDistribution(evidence),
+              barColor: m.color,
+            ),
+          ],
           const SizedBox(height: 10),
           Text(
             'OUTLIERS — кликни строку, чтобы выделить улику в DATA / SUSPECTS',
@@ -449,6 +505,128 @@ class _FormulaBox extends StatelessWidget {
           color: AppColors.textPrimary,
           fontFamily: 'JetBrainsMono',
           height: 1.4,
+        ),
+      ),
+    );
+  }
+}
+
+/// Блок ВЫВОДА: числа метод выдаёт всегда, а словесную интерпретацию игрок
+/// раскрывает сам (бесплатно в обучении, со штрафом в практике, никак на экзамене).
+class _ConclusionReveal extends StatelessWidget {
+  const _ConclusionReveal({
+    required this.conclusion,
+    required this.revealed,
+    required this.canReveal,
+    required this.costsRating,
+    required this.onReveal,
+  });
+
+  final String conclusion;
+  final bool revealed;
+  final bool canReveal;
+  final bool costsRating;
+  final VoidCallback onReveal;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (revealed) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        decoration: BoxDecoration(
+          color: AppColors.amberWarning.withValues(alpha: 0.08),
+          border: const Border(
+            left: BorderSide(color: AppColors.amberWarning, width: 3),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'ВЫВОД',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: AppColors.amberWarning,
+                letterSpacing: 3,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              conclusion,
+              style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
+            ),
+          ],
+        ),
+      ).animate().fadeIn(duration: 280.ms);
+    }
+    if (!canReveal) {
+      return Row(
+        children: [
+          const Icon(Icons.lock_outline, size: 14, color: AppColors.textMuted),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              'ВЫВОД НЕДОСТУПЕН В ЭКЗАМЕНЕ — интерпретируй числа сам',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: AppColors.textMuted,
+                letterSpacing: 1.5,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return _RevealButton(costsRating: costsRating, onReveal: onReveal);
+  }
+}
+
+class _RevealButton extends StatefulWidget {
+  const _RevealButton({required this.costsRating, required this.onReveal});
+
+  final bool costsRating;
+  final VoidCallback onReveal;
+
+  @override
+  State<_RevealButton> createState() => _RevealButtonState();
+}
+
+class _RevealButtonState extends State<_RevealButton> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const c = AppColors.amberWarning;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onReveal,
+        child: AnimatedContainer(
+          duration: AppMetrics.fast,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: c.withValues(alpha: _hover ? 0.16 : 0.07),
+            border: Border.all(color: c.withValues(alpha: _hover ? 0.9 : 0.5)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.visibility_outlined, size: 15, color: c),
+              const SizedBox(width: 8),
+              Text(
+                widget.costsRating
+                    ? 'РАСКРЫТЬ ВЫВОД  (−8 XP / −1 РЕП)'
+                    : 'РАСКРЫТЬ ВЫВОД',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: c,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

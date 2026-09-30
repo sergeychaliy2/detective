@@ -12,7 +12,6 @@ EvidenceEntity _ev(String id, num value, {DateTime? at}) => EvidenceEntity(
       source: 'TEST',
       summary: '',
       value: value,
-      flagged: false,
     );
 
 void main() {

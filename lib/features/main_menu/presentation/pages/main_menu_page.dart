@@ -65,7 +65,7 @@ class MainMenuPage extends ConsumerWidget {
                                   constraints:
                                       const BoxConstraints(maxWidth: 440),
                                   child: Text(
-                                    'Преврати сухую статистику в неопровержимое доказательство. Веди нелинейное следствие, применяй математику как единственный инструмент истины.',
+                                    'Преврати сухую статистику в неопровержимое доказательство. Веди нелинейное следствие, применяй математику, как единственный инструмент истины',
                                     style: theme.textTheme.bodyLarge?.copyWith(
                                       color: AppColors.textSecondary,
                                       height: 1.7,

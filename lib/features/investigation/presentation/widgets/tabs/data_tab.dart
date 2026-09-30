@@ -12,15 +12,16 @@ import '../../../domain/entities/analysis_result.dart';
 import '../../../domain/entities/evidence_entity.dart';
 import '../../../domain/entities/investigation_state.dart';
 import '../../../domain/services/statistical_methods.dart';
+import '../whatif_lab.dart';
 
-/// Вкладка "DATA" — таблица улик с сортировкой, выделением, флагами,
-/// value-фильтром и опциональными производными колонками (z, log, Δmed).
+/// Вкладка "DATA" — таблица улик с сортировкой, выделением, лабораторией
+/// WHAT-IF, value-фильтром и опциональными производными колонками (z, log, Δmed).
 class DataTab extends StatelessWidget {
   const DataTab({
     super.key,
     required this.state,
     required this.onSelect,
-    required this.onToggleFlag,
+    required this.onWhatIfTried,
     required this.onToggleSort,
     required this.onApplyFilter,
     required this.onClearFilter,
@@ -29,7 +30,7 @@ class DataTab extends StatelessWidget {
 
   final InvestigationState state;
   final ValueChanged<String> onSelect;
-  final ValueChanged<String> onToggleFlag;
+  final VoidCallback onWhatIfTried;
   final VoidCallback onToggleSort;
   final void Function(num min, num max) onApplyFilter;
   final VoidCallback onClearFilter;
@@ -61,13 +62,14 @@ class DataTab extends StatelessWidget {
               const Spacer(),
               Text(
                 '${visible.length} / ${state.evidence.length} ENTRIES  //  '
-                '${state.flaggedCount} FLAGGED  //  '
                 '${state.viewedEvidenceIds.length} VIEWED',
                 style: theme.textTheme.labelMedium,
               ),
             ],
           ),
           const SizedBox(height: 12),
+          WhatIfLab(state: state, onTried: onWhatIfTried),
+          const SizedBox(height: 10),
           _FilterAndDerivedBar(
             state: state,
             desc: desc,
@@ -108,7 +110,6 @@ class DataTab extends StatelessWidget {
                       isViewed: state.viewedEvidenceIds.contains(visible[i].id),
                       showSmokingGun: state.lifehackUsed,
                       onTap: () => onSelect(visible[i].id),
-                      onToggleFlag: () => onToggleFlag(visible[i].id),
                     ),
                   ),
           ),
@@ -454,7 +455,6 @@ class _HeaderRow extends StatelessWidget {
               ),
             ),
           SizedBox(width: 70, child: Text('LINK', style: s)),
-          SizedBox(width: 36, child: Text('FLAG', style: s)),
         ],
       ),
     );
@@ -474,7 +474,6 @@ class _Row extends StatefulWidget {
     required this.isViewed,
     required this.showSmokingGun,
     required this.onTap,
-    required this.onToggleFlag,
   });
 
   final int index;
@@ -488,7 +487,6 @@ class _Row extends StatefulWidget {
   final bool isViewed;
   final bool showSmokingGun;
   final VoidCallback onTap;
-  final VoidCallback onToggleFlag;
 
   @override
   State<_Row> createState() => _RowState();
@@ -540,7 +538,7 @@ class _RowState extends State<_Row> {
         onTap: widget.onTap,
         child: Container(
           color: bg,
-          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
           child: Row(
             children: [
               SizedBox(
@@ -612,22 +610,6 @@ class _RowState extends State<_Row> {
                   style: cellStyle?.copyWith(
                     color: AppColors.violet,
                     letterSpacing: 1.5,
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 36,
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: widget.onToggleFlag,
-                    child: Icon(
-                      widget.e.flagged ? Icons.flag : Icons.flag_outlined,
-                      size: 14,
-                      color: widget.e.flagged
-                          ? AppColors.crimsonError
-                          : AppColors.textMuted,
-                    ),
                   ),
                 ),
               ),

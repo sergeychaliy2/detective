@@ -20,27 +20,23 @@ class StageRequirement {
 }
 
 enum StageMetric {
-  evidenceViewed,
-  flagsPlaced,
+  robustnessTried,
   analysisOpened,
-  evidenceLinked,
+  accusationBuilt,
 }
 
 /// Карта требований по этапам. Для verdict — пусто (туда переходим
 /// через requestVerdict, не advanceStage).
+///
+/// intake — без условий: знакомство с массивом не должно быть busywork,
+/// переход открыт сразу.
 const Map<InvestigationStage, List<StageRequirement>> stageGateRequirements = {
-  InvestigationStage.intake: [
-    StageRequirement(
-      code: StageMetric.evidenceViewed,
-      label: 'ИЗУЧЕНО УЛИК',
-      target: 6,
-    ),
-  ],
+  InvestigationStage.intake: [],
   InvestigationStage.cleanup: [
     StageRequirement(
-      code: StageMetric.flagsPlaced,
-      label: 'ФЛАГИ ИЛИ VALUE-ФИЛЬТР',
-      target: 2,
+      code: StageMetric.robustnessTried,
+      label: 'ПРОБА ПОДМЕНЫ ЗНАЧЕНИЯ',
+      target: 1,
     ),
   ],
   InvestigationStage.analysis: [
@@ -52,9 +48,9 @@ const Map<InvestigationStage, List<StageRequirement>> stageGateRequirements = {
   ],
   InvestigationStage.suspects: [
     StageRequirement(
-      code: StageMetric.evidenceLinked,
-      label: 'ПРИВЯЗАНО УЛИК К ФИГУРАНТАМ',
-      target: 2,
+      code: StageMetric.accusationBuilt,
+      label: 'ОБВИНЕНИЕ СФОРМИРОВАНО',
+      target: 1,
     ),
   ],
   InvestigationStage.verdict: [],

@@ -13,9 +13,9 @@ import '../../../domain/entities/analysis_result.dart';
 import '../../../domain/entities/evidence_entity.dart';
 import '../../../domain/entities/suspect_entity.dart';
 
-/// Overlay вердикта: игрок выбирает подозреваемого + улику-цифру.
-/// Источник цифры — либо outlier из применённого метода (правильный путь),
-/// либо ручной ввод (override).
+/// Overlay вердикта: игрок называет подозреваемого и улику-цифру.
+/// Число вводится напрямую (это главный путь); кандидаты из методов —
+/// необязательная подсказка для быстрой подстановки.
 class VerdictOverlay extends StatefulWidget {
   const VerdictOverlay({
     super.key,
@@ -24,6 +24,7 @@ class VerdictOverlay extends StatefulWidget {
     required this.evidence,
     required this.evidenceLinks,
     required this.methodResults,
+    required this.accusedSuspectId,
     required this.onCancel,
     required this.onSubmit,
   });
@@ -33,6 +34,10 @@ class VerdictOverlay extends StatefulWidget {
   final List<EvidenceEntity> evidence;
   final Map<String, String> evidenceLinks;
   final Map<AnalysisMethod, AnalysisResult> methodResults;
+
+  /// Фигурант, которого игрок обвинил на этапе SUSPECTS — предвыбираем его.
+  final String? accusedSuspectId;
+
   final VoidCallback onCancel;
   final void Function(String suspectId, num value) onSubmit;
 
@@ -43,13 +48,12 @@ class VerdictOverlay extends StatefulWidget {
 class _VerdictOverlayState extends State<VerdictOverlay> {
   String? _suspectId;
   final _valueController = TextEditingController();
-  bool _manualMode = false;
   String? _selectedCandidateKey;
 
   @override
   void initState() {
     super.initState();
-    _manualMode = widget.methodResults.isEmpty;
+    _suspectId = widget.accusedSuspectId;
   }
 
   @override
@@ -65,8 +69,7 @@ class _VerdictOverlayState extends State<VerdictOverlay> {
   }
 
   /// Уникальные кандидаты — выбросы из всех применённых методов,
-  /// сгруппированные по evidence.id (один outlier может быть найден
-  /// несколькими методами — мы их объединим).
+  /// сгруппированные по evidence.id.
   List<_Candidate> _buildCandidates() {
     final byId = <String, _Candidate>{};
     widget.methodResults.forEach((method, result) {
@@ -147,9 +150,9 @@ class _VerdictOverlayState extends State<VerdictOverlay> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Подозреваемый + улика-цифра. Цифра должна быть обоснована — '
-                    'выбирай кандидата из применённых статистических методов '
-                    '(или нажми OVERRIDE и введи вручную).',
+                    'Назовите виновного и число-улику. Введите число сами в поле справа '
+                    '(сумма ущерба, аномальное значение) — или подставьте кандидата '
+                    'из методов слева одним кликом.',
                     style: theme.textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 18),
@@ -158,7 +161,7 @@ class _VerdictOverlayState extends State<VerdictOverlay> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Expanded(
-                          flex: 6,
+                          flex: 5,
                           child: candidates.isEmpty
                               ? _NoMethodsHint(theme: theme)
                               : _CandidatesPanel(
@@ -166,25 +169,17 @@ class _VerdictOverlayState extends State<VerdictOverlay> {
                                   selectedKey: _selectedCandidateKey,
                                   suspectFor: _suspectFor,
                                   onPick: _pickCandidate,
-                                  manualMode: _manualMode,
-                                  onToggleManual: () => setState(() {
-                                    _manualMode = !_manualMode;
-                                    if (_manualMode) {
-                                      _selectedCandidateKey = null;
-                                    }
-                                  }),
                                 ),
                         ),
                         const SizedBox(width: 18),
                         Expanded(
-                          flex: 4,
+                          flex: 5,
                           child: _SuspectsAndValue(
                             suspects: widget.suspects,
                             currentSuspect: _suspectId,
                             onPickSuspect: (id) =>
                                 setState(() => _suspectId = id),
                             valueController: _valueController,
-                            allowEditValue: candidates.isEmpty || _manualMode,
                             onValueChanged: () => setState(() {
                               _selectedCandidateKey = null;
                             }),
@@ -250,16 +245,12 @@ class _CandidatesPanel extends StatelessWidget {
     required this.selectedKey,
     required this.suspectFor,
     required this.onPick,
-    required this.manualMode,
-    required this.onToggleManual,
   });
 
   final List<_Candidate> candidates;
   final String? selectedKey;
   final String Function(EvidenceEntity) suspectFor;
   final ValueChanged<_Candidate> onPick;
-  final bool manualMode;
-  final VoidCallback onToggleManual;
 
   @override
   Widget build(BuildContext context) {
@@ -273,66 +264,33 @@ class _CandidatesPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                'КАНДИДАТЫ ИЗ МЕТОДОВ  //  ${candidates.length}',
-                style: theme.textTheme.labelLarge?.copyWith(letterSpacing: 3),
-              ),
-              const Spacer(),
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: onToggleManual,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: manualMode
-                          ? AppColors.crimsonError.withValues(alpha: 0.18)
-                          : Colors.transparent,
-                      border: Border.all(
-                        color: manualMode
-                            ? AppColors.crimsonError
-                            : AppColors.crimsonError.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    child: Text(
-                      manualMode ? 'OVERRIDE: ON' : 'OVERRIDE',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: AppColors.crimsonError,
-                        letterSpacing: 2,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+          Text(
+            'ПОДСКАЗКА · ПОДСТАВИТЬ ИЗ МЕТОДА  //  ${candidates.length}',
+            style: theme.textTheme.labelLarge?.copyWith(letterSpacing: 2),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Необязательно. Клик подставит число и фигуранта кандидата.',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: AppColors.textMuted,
+              letterSpacing: 1,
+            ),
           ),
           const SizedBox(height: 10),
           Expanded(
-            child: candidates.isEmpty
-                ? Center(
-                    child: Text(
-                      'Нет outliers. Возвращайся в ANALYSIS и применяй метод.',
-                      style: theme.textTheme.labelMedium
-                          ?.copyWith(color: AppColors.textMuted),
-                    ),
-                  )
-                : ListView.separated(
-                    itemCount: candidates.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 6),
-                    itemBuilder: (context, i) {
-                      final c = candidates[i];
-                      return _CandidateRow(
-                        candidate: c,
-                        suspectId: suspectFor(c.evidence),
-                        selected: selectedKey == c.evidence.id,
-                        disabled: manualMode,
-                        onTap: () => onPick(c),
-                      );
-                    },
-                  ),
+            child: ListView.separated(
+              itemCount: candidates.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 6),
+              itemBuilder: (context, i) {
+                final c = candidates[i];
+                return _CandidateRow(
+                  candidate: c,
+                  suspectId: suspectFor(c.evidence),
+                  selected: selectedKey == c.evidence.id,
+                  onTap: () => onPick(c),
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -345,14 +303,12 @@ class _CandidateRow extends StatefulWidget {
     required this.candidate,
     required this.suspectId,
     required this.selected,
-    required this.disabled,
     required this.onTap,
   });
 
   final _Candidate candidate;
   final String suspectId;
   final bool selected;
-  final bool disabled;
   final VoidCallback onTap;
 
   @override
@@ -368,87 +324,82 @@ class _CandidateRowState extends State<_CandidateRow> {
     final e = widget.candidate.evidence;
     final color = widget.selected ? AppColors.magenta : AppColors.neonCyan;
     return MouseRegion(
-      cursor: widget.disabled
-          ? SystemMouseCursors.forbidden
-          : SystemMouseCursors.click,
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() => _hover = false),
       child: GestureDetector(
-        onTap: widget.disabled ? null : widget.onTap,
-        child: Opacity(
-          opacity: widget.disabled ? 0.45 : 1,
-          child: AnimatedContainer(
-            duration: AppMetrics.fast,
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-            decoration: BoxDecoration(
-              color: widget.selected
-                  ? color.withValues(alpha: 0.18)
-                  : _hover
-                      ? color.withValues(alpha: 0.08)
-                      : Colors.transparent,
-              border: Border.all(
-                color: color.withValues(alpha: widget.selected ? 1 : 0.4),
-                width: widget.selected ? 1.4 : 0.8,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: AppMetrics.fast,
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+          decoration: BoxDecoration(
+            color: widget.selected
+                ? color.withValues(alpha: 0.18)
+                : _hover
+                    ? color.withValues(alpha: 0.08)
+                    : Colors.transparent,
+            border: Border.all(
+              color: color.withValues(alpha: widget.selected ? 1 : 0.4),
+              width: widget.selected ? 1.4 : 0.8,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    e.id,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: AppColors.hologramBlue,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'value=${e.value}',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: color,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Text(
+                    '→ ${widget.suspectId}',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: AppColors.violet,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ],
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      e.id,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: AppColors.hologramBlue,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'value=${e.value}',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: color,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Text(
-                      '→ ${widget.suspectId}',
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: AppColors.violet,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
-                  children: [
-                    for (final entry in widget.candidate.methods.entries)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: entry.key.color.withValues(alpha: 0.12),
-                          border: Border.all(
-                            color: entry.key.color.withValues(alpha: 0.6),
-                          ),
-                        ),
-                        child: Text(
-                          '${entry.key.code}: ${entry.value}',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: entry.key.color,
-                            letterSpacing: 1.5,
-                            fontSize: 10,
-                          ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  for (final entry in widget.candidate.methods.entries)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: entry.key.color.withValues(alpha: 0.12),
+                        border: Border.all(
+                          color: entry.key.color.withValues(alpha: 0.6),
                         ),
                       ),
-                  ],
-                ),
-              ],
-            ),
+                      child: Text(
+                        '${entry.key.code}: ${entry.value}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: entry.key.color,
+                          letterSpacing: 1.5,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -462,7 +413,6 @@ class _SuspectsAndValue extends StatelessWidget {
     required this.currentSuspect,
     required this.onPickSuspect,
     required this.valueController,
-    required this.allowEditValue,
     required this.onValueChanged,
   });
 
@@ -470,7 +420,6 @@ class _SuspectsAndValue extends StatelessWidget {
   final String? currentSuspect;
   final ValueChanged<String> onPickSuspect;
   final TextEditingController valueController;
-  final bool allowEditValue;
   final VoidCallback onValueChanged;
 
   @override
@@ -480,8 +429,7 @@ class _SuspectsAndValue extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('ПОДОЗРЕВАЕМЫЙ',
-            style:
-                theme.textTheme.labelMedium?.copyWith(letterSpacing: 3)),
+            style: theme.textTheme.labelMedium?.copyWith(letterSpacing: 3)),
         const SizedBox(height: 8),
         Expanded(
           child: SingleChildScrollView(
@@ -500,24 +448,30 @@ class _SuspectsAndValue extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 12),
-        Text('УЛИКА-ЦИФРА',
-            style:
-                theme.textTheme.labelMedium?.copyWith(letterSpacing: 3)),
-        const SizedBox(height: 6),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            const Icon(Icons.edit_note,
+                color: AppColors.neonCyan, size: 18),
+            const SizedBox(width: 8),
+            Text('УЛИКА-ЦИФРА — ВВЕДИТЕ САМИ',
+                style: theme.textTheme.labelMedium
+                    ?.copyWith(letterSpacing: 3, color: AppColors.neonCyan)),
+          ],
+        ),
+        const SizedBox(height: 8),
         _NumericField(
           controller: valueController,
-          enabled: allowEditValue,
           onChanged: onValueChanged,
         ),
         const SizedBox(height: 6),
         Text(
-          allowEditValue
-              ? 'Свободный ввод: подача без обоснования = риск ошибки.'
-              : 'Цифра подставлена из метода. Для ручного ввода → OVERRIDE.',
+          'Кликните в поле и наберите число с клавиатуры. Это ваше финальное '
+          'обвинение — например, сумма ущерба.',
           style: theme.textTheme.labelSmall?.copyWith(
             color: AppColors.textMuted,
-            letterSpacing: 1.2,
+            letterSpacing: 1,
+            height: 1.4,
           ),
         ),
       ],
@@ -534,9 +488,9 @@ class _NoMethodsHint extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
       decoration: BoxDecoration(
-        color: AppColors.amberWarning.withValues(alpha: 0.06),
+        color: AppColors.neonCyan.withValues(alpha: 0.05),
         border: Border.all(
-          color: AppColors.amberWarning.withValues(alpha: 0.5),
+          color: AppColors.neonCyan.withValues(alpha: 0.4),
         ),
       ),
       child: Column(
@@ -544,13 +498,13 @@ class _NoMethodsHint extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.warning_amber_rounded,
-                  color: AppColors.amberWarning, size: 18),
+              const Icon(Icons.keyboard_alt_outlined,
+                  color: AppColors.neonCyan, size: 18),
               const SizedBox(width: 8),
               Text(
-                'МЕТОДЫ НЕ ПРИМЕНЕНЫ',
+                'ВВЕДИТЕ ЧИСЛО САМИ',
                 style: theme.textTheme.labelLarge?.copyWith(
-                  color: AppColors.amberWarning,
+                  color: AppColors.neonCyan,
                   letterSpacing: 3,
                 ),
               ),
@@ -558,9 +512,9 @@ class _NoMethodsHint extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Доказательная вкладка пуста: ни одного outlier-кандидата нет. '
-            'Можно подать вердикт «вслепую» (введи число вручную справа), '
-            'но математической поддержки у такого решения нет.',
+            'Методы не применялись — кандидатов для подстановки нет. '
+            'Это нормально: наберите финальное число-улику в поле справа '
+            'и выберите подозреваемого.',
             style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
           ),
         ],
@@ -644,50 +598,50 @@ class _NumericField extends StatelessWidget {
   const _NumericField({
     required this.controller,
     required this.onChanged,
-    required this.enabled,
   });
   final TextEditingController controller;
   final VoidCallback onChanged;
-  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.panelBg,
-        border: Border.all(
-          color: enabled
-              ? AppColors.neonCyan.withValues(alpha: 0.5)
-              : AppColors.textMuted.withValues(alpha: 0.4),
-        ),
+        border: Border.all(color: AppColors.neonCyan, width: 1.4),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.neonCyan.withValues(alpha: 0.25),
+            blurRadius: 14,
+            spreadRadius: -4,
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.numbers,
-            color: enabled ? AppColors.neonCyan : AppColors.textMuted,
-            size: 16,
-          ),
+          const Icon(Icons.tag, color: AppColors.neonCyan, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: TextField(
               controller: controller,
-              enabled: enabled,
+              autofocus: true,
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.,-]')),
               ],
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: enabled
-                        ? AppColors.neonCyan
-                        : AppColors.textPrimary,
+              style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                    color: AppColors.neonCyan,
+                    fontSize: 28,
                     letterSpacing: 2,
                   ),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 border: InputBorder.none,
-                hintText: '0.00',
+                hintText: 'например 5000000',
+                hintStyle: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppColors.textMuted,
+                      letterSpacing: 1,
+                    ),
               ),
               onChanged: (_) => onChanged(),
             ),

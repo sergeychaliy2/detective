@@ -94,6 +94,14 @@ class PlayerController extends StateNotifier<PlayerState> {
     ));
   }
 
+  /// Списывает рейтинг за раскрытие словесного вывода метода (в уровне практики).
+  void chargeReveal({required int amount, required int reputationLoss}) {
+    _emit(state.copyWith(
+      xp: (state.xp - amount).clamp(0, 1 << 30),
+      reputation: (state.reputation - reputationLoss).clamp(0, 100),
+    ));
+  }
+
   void registerRollback() {
     _emit(state.copyWith(
       xp: (state.xp - 30).clamp(0, 1 << 30),

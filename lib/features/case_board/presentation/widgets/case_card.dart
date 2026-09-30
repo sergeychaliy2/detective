@@ -66,6 +66,10 @@ class _CaseCardState extends State<CaseCard> {
                         style: theme.textTheme.labelSmall
                             ?.copyWith(color: accent, letterSpacing: 3),
                       ),
+                      if (widget.caseInfo.isTutorial) ...[
+                        const SizedBox(width: 8),
+                        const _TutorialChip(),
+                      ],
                       const Spacer(),
                       DifficultyBadge(
                         difficulty: widget.caseInfo.difficulty,
@@ -146,6 +150,39 @@ class _CaseCardState extends State<CaseCard> {
   String _compact(int v) {
     if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}K';
     return '$v';
+  }
+}
+
+class _TutorialChip extends StatelessWidget {
+  const _TutorialChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.jadeSuccess.withValues(alpha: 0.14),
+        border: Border.all(
+            color: AppColors.jadeSuccess.withValues(alpha: 0.8), width: 0.8),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.school_outlined,
+              size: 11, color: AppColors.jadeSuccess),
+          const SizedBox(width: 5),
+          Text(
+            'ТУТОРИАЛ',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppColors.jadeSuccess,
+                  letterSpacing: 2,
+                  fontSize: 9,
+                ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

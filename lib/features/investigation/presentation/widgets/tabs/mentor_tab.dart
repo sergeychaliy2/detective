@@ -1,6 +1,7 @@
 import 'package:animated_text_kit/animated_text_kit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/widgets/buttons/glow_button.dart';
@@ -134,6 +135,9 @@ class MentorTab extends StatelessWidget {
                   ),
                 ],
                 const Spacer(),
+                // Link to full theory in Mentor page
+                _TheoryLink(stage: stage),
+                const SizedBox(height: 14),
                 Row(
                   children: [
                     GlowButton(
@@ -190,6 +194,81 @@ class MentorTab extends StatelessWidget {
         return 'Финальный этап. Подсказок больше нет. Ты должен сформулировать обвинение одной "уликой-цифрой": '
             'число и интервал доверия, отделяющие подозреваемого от всех остальных. Ошибка стоит репутации.';
     }
+  }
+}
+
+/// Кнопка-ссылка на полную теорию в разделе НАСТАВНИК.
+class _TheoryLink extends StatefulWidget {
+  const _TheoryLink({required this.stage});
+  final InvestigationStage stage;
+
+  @override
+  State<_TheoryLink> createState() => _TheoryLinkState();
+}
+
+class _TheoryLinkState extends State<_TheoryLink> {
+  bool _hover = false;
+
+  String _chapterLabel(InvestigationStage s) {
+    switch (s) {
+      case InvestigationStage.intake:
+        return 'Среднее и медиана';
+      case InvestigationStage.cleanup:
+        return 'MAD — бронежилет аналитика';
+      case InvestigationStage.analysis:
+        return 'Z-оценка и правило 3σ';
+      case InvestigationStage.suspects:
+        return 'Корреляция Спирмена';
+      case InvestigationStage.verdict:
+        return 'IQR — надёжный коридор нормы';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: () => context.push('/mentor'),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+          decoration: BoxDecoration(
+            color: AppColors.neonCyan.withValues(
+              alpha: _hover ? 0.08 : 0.03,
+            ),
+            border: Border.all(
+              color: AppColors.neonCyan.withValues(
+                alpha: _hover ? 0.6 : 0.25,
+              ),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.auto_stories_outlined,
+                color: AppColors.neonCyan,
+                size: 16,
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  'Полная теория: «${_chapterLabel(widget.stage)}» →',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: AppColors.neonCyan,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

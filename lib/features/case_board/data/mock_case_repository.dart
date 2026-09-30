@@ -17,6 +17,45 @@ class MockCaseRepository implements CaseRepository {
     await Future<void>.delayed(const Duration(milliseconds: 220));
     return [
       CaseEntity(
+        id: 'sn-007',
+        code: 'SN-007',
+        title: 'АНАТОМИЯ ФАЛЬШИВКИ',
+        brief:
+            'Главбух Зорин обвинён в краже 5 млн ₽: сотни мелких переводов '
+            'фирмам-однодневкам. Он клянётся, что траты реальны, а строки '
+            'вбросил хакер. Ни одной «крупной» суммы — обычные детекторы '
+            'выбросов молчат. Поймайте ложь Законом Бенфорда.',
+        theme: CaseTheme.finance,
+        difficulty: CaseDifficulty.trainee,
+        status: CaseStatus.available,
+        rewardXp: 90,
+        dataPoints: 28,
+        suspects: 2,
+        evidenceTypes: const ['Платёжный реестр', 'Журнал доступа БД'],
+        solutionSuspectId: 'S1',
+        solutionValue: 5000000,
+        solutionTolerance: 1000,
+        solutionEvidenceKindIndex: EvidenceKind.transaction.index,
+        solutionMethod: AnalysisMethod.benford,
+        solutionRationale:
+            'Первые цифры сумм сгущены на 4/5/7 (≈75%), а «1» и «2» почти '
+            'отсутствуют — χ² ≈ 48 против критических 15.51. Реальные траты '
+            'так не распределяются: массив выдуман вручную. Ввод вёлся под '
+            'учётной записью бухгалтера, следов хакера в логах нет.',
+        theoryHints: const [
+          'Все суммы — 3–8 тыс ₽. Гигантских нет: ищите не выброс, а закономерность.',
+          'Откройте лабораторию WHAT-IF в DATA: подмените одну сумму на гигантскую — '
+              'увидите, как чувствительно среднее к выбросам, а медиана нет.',
+          'Сначала Z-SCORE (убедитесь: выбросов нет), затем BENFORD (χ² взорвётся).',
+          'Привяжите фальшивый перевод к БУХГАЛТЕРУ и обвините его; с АДМИНИСТРАТОРА '
+              'снимите подозрение — логи доступа чисты.',
+          'Вердикт: БУХГАЛТЕР + 5000000. Подлог доказан распределением цифр.',
+        ],
+        isTutorial: true,
+        noiseMean: 5000,
+        noiseStd: 1400,
+      ),
+      CaseEntity(
         id: 'sn-001',
         code: 'SN-001',
         title: 'ШЕПОТ В ДАННЫХ',
@@ -164,38 +203,6 @@ class MockCaseRepository implements CaseRepository {
         theoryHints: const [],
         noiseMean: 16,
         noiseStd: 6,
-      ),
-      CaseEntity(
-        id: 'sn-006',
-        code: 'SN-006',
-        title: 'ПЕРВОЕ ПРИКОСНОВЕНИЕ',
-        brief:
-            'Туториал-дело. Наставник проведёт за руку через приём данных, '
-            'очистку и базовый статистический анализ.',
-        theme: CaseTheme.finance,
-        difficulty: CaseDifficulty.trainee,
-        status: CaseStatus.available,
-        rewardXp: 80,
-        dataPoints: 1200,
-        suspects: 2,
-        evidenceTypes: const ['Чеки', 'Переписка'],
-        solutionSuspectId: 'S1',
-        solutionValue: 1100,
-        solutionTolerance: 10,
-        solutionEvidenceKindIndex: EvidenceKind.transaction.index,
-        solutionMethod: AnalysisMethod.zScore,
-        solutionRationale:
-            'Единственный чек на сумму ≈ 1100, выпавший из штатной полосы '
-            '(остальные равномерно в 200–500).',
-        theoryHints: const [
-          'Откройте таблицу DATA, прочтите все чеки. Запомните типичный диапазон.',
-          'Проставьте FLAG на любом чеке, выходящем за привычный диапазон.',
-          'Откройте ANALYSIS — гистограмма мгновенно покажет выброс.',
-          'В SUSPECTS привяжите чек-выброс к ШЕРИФУ.',
-          'Вердикт: ШЕРИФ + 1100. Это была репетиция.',
-        ],
-        noiseMean: 320,
-        noiseStd: 110,
       ),
     ];
   }
